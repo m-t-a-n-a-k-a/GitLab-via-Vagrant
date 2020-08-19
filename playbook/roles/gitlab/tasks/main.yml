@@ -1,0 +1,74 @@
+---
+- name: selinux disabled
+  selinux:
+    state: disabled
+
+- name: for gitlab package installed
+  yum:
+    name:
+      - policycoreutils-python-2.5-34.el7
+      - openssh-server-7.4p1-21.el7
+      - docker-1.13.1-162.git64e9980.el7.centos
+      - gcc-4.8.5-39.el7
+      - openssl-devel-1.0.2k-19.el7
+      - readline-devel-6.2-11.el7
+      - zlib-devel-1.2.7-18.el7
+      - bzip2-1.0.6-13.el7
+      - git-1.8.3.1-23.el7_8
+      - epel-release-7-12.noarch
+    state: present
+
+- name: docker enabled and started
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: gitlab-ce repository exist check
+  shell: "ls /etc/yum.repos.d/gitlab_gitlab-ce.repo"
+  register: repository_exist_check
+  ignore_errors: yes
+  changed_when: false
+  check_mode: no
+
+- name: gitlab-ce repository provided
+  shell: "curl https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.rpm.sh | bash"
+  args:
+    warn: false
+  when: repository_exist_check.rc != 0
+
+- name: gitlab-ce installed
+  yum:
+    name:
+      - gitlab-ce
+    state: present
+  notify: reconfigure gitlab
+
+- name: gitlab.rb provided
+  replace:
+    path: /etc/gitlab/gitlab.rb
+    regexp: "gitlab.example.com"
+    replace: "{{ ansible_eth1.ipv4.address }}"
+  notify: reconfigure gitlab
+
+- name: gitlab-runner downloaded
+  get_url:
+    url: "https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-linux-amd64"
+    dest: /usr/local/bin/gitlab-runner
+    mode: 0755
+
+- name: user gitlab-runner created
+  user:
+    name: gitlab-runner
+    comment: GitLab Runner
+    shell: /bin/bash
+  notify: install gitlab-runner
+
+- name: handlers kicked
+  meta: flush_handlers
+
+- name: gitlab-runner enabled and started
+  systemd:
+    name: gitlab-runner
+    state: started
+    enabled: yes

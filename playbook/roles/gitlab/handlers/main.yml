@@ -1,0 +1,6 @@
+---
+- name: reconfigure gitlab
+  command: "gitlab-ctl reconfigure"
+
+- name: install gitlab-runner
+  command: "/usr/local/bin/gitlab-runner install --user=gitlab-runner --working-directory=/home/gitlab-runner"
